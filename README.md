@@ -1,4 +1,4 @@
-# Moiré Brain: An Interactive Model of Emergent Cognition
+# Moiré Brain (Living Atlas) : An Interactive Model of Emergent Cognition
 
 ![Description](image.png)
 
