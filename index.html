@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Living Atlas v3</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto+Mono:wght@300;400&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            color: #E0E0E0;
+            font-family: 'Roboto Mono', monospace;
+            overflow: hidden;
+            cursor: none;
+        }
+        
+        .atlas-container {
+            width: 100vw;
+            height: 100vh;
+            display: grid;
+            grid-template-columns: 420px 1fr;
+            grid-template-rows: 100px 1fr;
+            gap: 0;
+        }
+        
+        .header {
+            grid-column: 1 / -1;
+            background: linear-gradient(135deg, rgba(10, 0, 20, 0.8), rgba(20, 0, 40, 0.8));
+            border-bottom: 2px solid #39FF14;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 40px;
+            box-shadow: 0 0 40px rgba(57, 255, 20, 0.4);
+            backdrop-filter: blur(5px);
+            z-index: 10;
+        }
+        
+        .title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.8em;
+            background: linear-gradient(45deg, #FF4500, #f0f, #00FFFF, #39FF14);
+            background-size: 300% 300%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: colorShift 8s ease-in-out infinite alternate;
+            text-shadow: 0 0 20px rgba(57, 255, 20, 0.6);
+        }
+
+        @keyframes colorShift {
+            0% { background-position: 0% 50%; }
+            100% { background-position: 100% 50%; }
+        }
+        
+        .console-panel {
+            grid-row: 2 / 3;
+            grid-column: 1 / 2;
+            background: rgba(10, 0, 20, 0.7);
+            border-right: 2px solid #39FF14;
+            padding: 25px;
+            overflow-y: auto;
+            backdrop-filter: blur(10px);
+            box-shadow: inset -10px 0 30px rgba(0,0,0,0.5);
+        }
+        
+        .fractal-canvas-container {
+            grid-row: 2 / 3;
+            grid-column: 2 / -1;
+            background: #000;
+            position: relative;
+        }
+        
+        canvas {
+            width: 100%;
+            height: 100%;
+            cursor: none;
+        }
+        
+        .console-title {
+            font-family: 'Orbitron', sans-serif;
+            color: #00FFFF;
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px #00FFFF;
+            border-bottom: 1px solid #00FFFF;
+            padding-bottom: 10px;
+        }
+
+        .control-group { margin-bottom: 25px; }
+        .control-group label { display: block; margin-bottom: 10px; font-size: 1.1em; color: #f0f; }
+        .control-group input[type="range"] { width: 100%; }
+        .value-display { float: right; background: rgba(0,0,0,0.5); padding: 2px 5px; border-radius: 4px; }
+
+        .atlas-logbook { margin-top: 30px; padding: 15px; border-radius: 8px; background: rgba(0, 0, 0, 0.3); border: 1px solid #00FFFF; }
+        .log-title { font-weight: bold; margin-bottom: 10px; color: #00FFFF; }
+        .log-entry { font-size: 0.9em; color: #ccc; line-height: 1.5; }
+
+        .auto-zoom-btn {
+            width: 100%;
+            padding: 12px;
+            margin-top: 20px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.1em;
+            color: #000;
+            background: #39FF14;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-shadow: 0 0 5px rgba(0,0,0,0.5);
+            transition: all 0.2s;
+        }
+        .auto-zoom-btn:hover { box-shadow: 0 0 20px #39FF14; }
+        .auto-zoom-btn.active { background: #FF4500; color: #fff; }
+
+        .custom-cursor { position: fixed; width: 25px; height: 25px; border: 2px solid #39FF14; border-radius: 50%; pointer-events: none; z-index: 9999; transition: transform 0.1s; mix-blend-mode: exclusion; }
+        .custom-cursor::after { content: ''; position: absolute; width: 5px; height: 5px; background: #f0f; border-radius: 50%; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+
+        .status-overlay { position: absolute; bottom: 20px; left: 20px; font-size: 14px; color: #fff; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; z-index: 5; pointer-events: none; }
+        .zoom-controls { position: absolute; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 10px; z-index: 5; }
+        .zoom-controls button { width: 40px; height: 40px; font-size: 24px; font-weight: bold; color: #f0f; background: rgba(255, 0, 255, 0.1); border: 1px solid #f0f; border-radius: 50%; cursor: pointer; transition: all 0.2s; backdrop-filter: blur(5px); }
+        .zoom-controls button:hover { background: #f0f; color: #000; box-shadow: 0 0 15px #f0f; }
+
+    </style>
+</head>
+<body>
+    <div class="custom-cursor" id="cursor"></div>
+    <div class="atlas-container">
+        <header class="header">
+            <div class="title">The Living Atlas</div>
+        </header>
+        <div class="console-panel">
+            <div class="console-title">Substrate Controls</div>
+            <div class="control-group">
+                <label for="omega">Ω - Evolution (Time) <span id="omegaValue" class="value-display">1.00</span></label>
+                <input type="range" id="omega" min="0.0" max="100.0" value="1.0" step="0.1">
+            </div>
+            <div class="control-group">
+                <label for="mu">μ - Consolidation <span id="muValue" class="value-display">0.00</span></label>
+                <input type="range" id="mu" min="0.0" max="1.0" value="0.0" step="0.01">
+            </div>
+            <div class="control-group">
+                <label for="sigma">Σ - Field Complexity <span id="sigmaValue" class="value-display">4.00</span></label>
+                <input type="range" id="sigma" min="1.0" max="8.0" value="4.0" step="1.0">
+            </div>
+            <div class="control-group">
+                <label for="psi">Ψ - Stimulus Strength <span id="psiValue" class="value-display">0.50</span></label>
+                <input type="range" id="psi" min="0.0" max="2.0" value="0.5" step="0.01">
+            </div>
+            <button id="autoZoomBtn" class="auto-zoom-btn">🚀 Cosmic Zoom Out</button>
+            <div class="atlas-logbook">
+                <div class="log-title">System State Analysis</div>
+                <div id="logEntry" class="log-entry"></div>
+            </div>
+        </div>
+        <div class="fractal-canvas-container">
+            <canvas id="fractalCanvas"></canvas>
+            <div id="statusOverlay" class="status-overlay"></div>
+            <div class="zoom-controls">
+                <button id="zoomIn" aria-label="Zoom In">+</button>
+                <button id="zoomOut" aria-label="Zoom Out">-</button>
+            </div>
+        </div>
+    </div>
+    <script id="vertex-shader" type="x-shader/x-vertex">
+        attribute vec2 a_position;
+        void main() { gl_Position = vec4(a_position, 0.0, 1.0); }
+    </script>
+    <script id="fragment-shader" type="x-shader/x-fragment">
+        precision highp float;
+        uniform vec2 u_resolution;
+        uniform vec3 u_view;
+        uniform vec4 u_params;
+        uniform vec2 u_mouse;
+        vec2 hash(vec2 p){ p = vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3))); return -1.0+2.0*fract(sin(p)*43758.5453123); }
+        float noise(vec2 p){ const float K1=0.366025404; const float K2=0.211324865; vec2 i=floor(p+(p.x+p.y)*K1); vec2 a=p-i+(i.x+i.y)*K2; vec2 o=(a.x>a.y)?vec2(1.0,0.0):vec2(0.0,1.0); vec2 b=a-o+K2; vec2 c=a-1.0+2.0*K2; vec3 h=max(0.5-vec3(dot(a,a),dot(b,b),dot(c,c)),0.0); vec3 n=h*h*h*h*vec3(dot(a,hash(i)),dot(b,hash(i+o)),dot(c,hash(i+1.0))); return dot(n,vec3(70.0)); }
+        float fbm(vec2 p,float o){ float v=0.0; float a=0.5; for(int i=0;i<8;i++){ if(float(i)>=o)break; v+=a*noise(p); p*=2.0; a*=0.5; } return v; }
+        void main(){ float t=u_params.x; float mu=u_params.y; float sigma=u_params.z; float psi=u_params.w; vec2 uv=(gl_FragCoord.xy-0.5*u_resolution.xy)/u_resolution.y; vec2 pos=vec2(u_view.x,u_view.y)+uv/u_view.z; vec2 slow_p=pos*0.5; float slow_v=fbm(slow_p+t*0.01,sigma*0.5); vec2 fast_p=pos*4.0; float fast_v=fbm(fast_p-t*0.05,sigma); float final_v=mix(fast_v,slow_v,mu); vec2 mouse_uv=(u_mouse-0.5*u_resolution.xy)/u_resolution.y; float stim_dist=distance(uv,mouse_uv); float stim_eff=psi*exp(-stim_dist*20.0); final_v+=stim_eff*0.5; vec2 dist_pos=pos+normalize(uv-mouse_uv)*stim_eff*0.01; final_v+=noise(dist_pos*100.0)*stim_eff*0.2; vec3 color=0.5+0.5*cos(final_v*10.0+vec3(0.0,0.8,1.0)+t*0.02); color=pow(color,vec3(0.8)); color+=stim_eff*vec3(1.0,0.8,0.2); gl_FragColor=vec4(color,1.0); }
+    </script>
+    <script>
+        const canvas = document.getElementById('fractalCanvas');
+        let gl = canvas.getContext('webgl', { antialias: true }) || canvas.getContext('experimental-webgl');
+        if (!gl) alert('WebGL not supported!');
+        
+        const vsSource = document.getElementById('vertex-shader').textContent;
+        const fsSource = document.getElementById('fragment-shader').textContent;
+        const shaderProgram = createProgram(gl, vsSource, fsSource);
+
+        const uniformLocations = {
+            resolution: gl.getUniformLocation(shaderProgram, 'u_resolution'),
+            view: gl.getUniformLocation(shaderProgram, 'u_view'),
+            params: gl.getUniformLocation(shaderProgram, 'u_params'),
+            mouse: gl.getUniformLocation(shaderProgram, 'u_mouse'),
+        };
+
+        const positionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,1,1,1,-1,-1,1,-1]), gl.STATIC_DRAW);
+        const posAttrLoc = gl.getAttribLocation(shaderProgram, "a_position");
+        gl.enableVertexAttribArray(posAttrLoc);
+        gl.vertexAttribPointer(posAttrLoc, 2, gl.FLOAT, false, 0, 0);
+
+        let view = { x: 0.0, y: 0.0, zoom: 1.0 };
+        let params = { omega: 1.0, mu: 0.0, sigma: 4.0, psi: 0.5 };
+        let mouse = { x: 0, y: 0, isDown: false };
+        let isAutoZooming = false;
+
+        function createProgram(gl, vs, fs) {
+            const p = gl.createProgram();
+            const v = createShader(gl, gl.VERTEX_SHADER, vs);
+            const f = createShader(gl, gl.FRAGMENT_SHADER, fs);
+            if (!v || !f) return null;
+            gl.attachShader(p,v); gl.attachShader(p,f); gl.linkProgram(p);
+            if (!gl.getProgramParameter(p, gl.LINK_STATUS)) { console.error(gl.getProgramInfoLog(p)); return null; }
+            return p;
+        }
+
+        function createShader(gl, type, src) {
+            const s = gl.createShader(type);
+            gl.shaderSource(s, src); gl.compileShader(s);
+            if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { console.error(gl.getShaderInfoLog(s)); return null; }
+            return s;
+        }
+
+        function setupUI() {
+            Object.keys(params).forEach(p => {
+                document.getElementById(p).addEventListener('input', (e) => {
+                    params[p] = parseFloat(e.target.value);
+                    document.getElementById(`${p}Value`).textContent = params[p].toFixed(2);
+                    updateLogbook();
+                });
+            });
+
+            document.getElementById('zoomIn').addEventListener('click', () => { view.zoom *= 1.5; });
+            document.getElementById('zoomOut').addEventListener('click', () => { view.zoom /= 1.5; });
+            
+            const autoZoomBtn = document.getElementById('autoZoomBtn');
+            autoZoomBtn.addEventListener('click', () => {
+                isAutoZooming = !isAutoZooming;
+                autoZoomBtn.textContent = isAutoZooming ? '⏹️ Stop Exploring' : '🚀 Cosmic Zoom Out';
+                autoZoomBtn.classList.toggle('active', isAutoZooming);
+            });
+        }
+
+        function updateLogbook() {
+            let entry = "";
+            if (params.mu > 0.8) entry += "State is dominated by deep memory (cortex). Stable, low-frequency patterns. ";
+            else if (params.mu < 0.2) entry += "High-frequency hippocampal activity is dominant. System is reactive and chaotic. ";
+            else entry += "Memory consolidation in progress. Fast and slow layers are interfering. ";
+            if (params.psi > 1.2) entry += "System is hyper-responsive to external stimulus. ";
+            else if (params.psi < 0.2) entry += "System is mostly self-contained and introspective. ";
+            else entry += "Balanced response to stimulus. ";
+            entry += `Field complexity is at level ${params.sigma.toFixed(0)}.`;
+            document.getElementById('logEntry').textContent = entry;
+        }
+
+        let lastTime = 0, frameCount = 0;
+        function animate(timestamp) {
+            if (isAutoZooming) {
+                view.zoom /= 1.01;
+            }
+            gl.useProgram(shaderProgram);
+            gl.uniform2f(uniformLocations.resolution, gl.canvas.width, gl.canvas.height);
+            gl.uniform3f(uniformLocations.view, view.x, view.y, view.zoom);
+            gl.uniform4f(uniformLocations.params, params.omega, params.mu, params.sigma, params.psi);
+            gl.uniform2f(uniformLocations.mouse, mouse.x, canvas.height - mouse.y);
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+            frameCount++;
+            if (timestamp - lastTime > 1000) {
+                document.getElementById('statusOverlay').innerHTML = `X: ${view.x.toPrecision(3)} | Y: ${view.y.toPrecision(3)} | Zoom: ${view.zoom.toExponential(2)}<br>FPS: ${frameCount}`;
+                lastTime = timestamp; frameCount = 0;
+            }
+            requestAnimationFrame(animate);
+        }
+
+        let panStart = {x: 0, y: 0}, viewStart = {x: 0, y: 0};
+        document.addEventListener('mousemove', e => {
+            mouse.x = e.clientX; mouse.y = e.clientY;
+            document.getElementById('cursor').style.transform = `translate(${e.clientX - 12}px, ${e.clientY - 12}px)`;
+            if (mouse.isDown) {
+                const dx = (e.clientX - panStart.x) / (0.5 * canvas.height * view.zoom);
+                const dy = (e.clientY - panStart.y) / (0.5 * canvas.height * view.zoom);
+                view.x = viewStart.x - dx;
+                view.y = viewStart.y + dy;
+            }
+        });
+        canvas.addEventListener('mousedown', e => { mouse.isDown = true; panStart.x = e.clientX; panStart.y = e.clientY; viewStart.x = view.x; viewStart.y = view.y; });
+        document.addEventListener('mouseup', () => { mouse.isDown = false; });
+        canvas.addEventListener('wheel', e => { e.preventDefault(); view.zoom *= (e.deltaY > 0 ? 0.9 : 1.1); });
+        window.addEventListener('resize', () => {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+        });
+
+        setupUI();
+        updateLogbook();
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+        gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+        animate(0);
+    </script>
+</body>
+</html>
